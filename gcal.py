@@ -46,10 +46,8 @@ def get_calendar_service():
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            # Token expired tapi ada refresh_token -> refresh otomatis, tanpa browser
             creds.refresh(Request())
         else:
-            # Jalur ini HANYA untuk development lokal (butuh browser)
             if os.getenv("ENV") == "local":
                 flow = InstalledAppFlow.from_client_secrets_file(cred_path, SCOPES)
                 creds = flow.run_local_server(port=0)
@@ -60,14 +58,16 @@ def get_calendar_service():
                     "lalu update GOOGLE_TOKEN_B64 di environment variables server."
                 )
 
-        # Simpan token terbaru (hasil refresh atau login baru) ke file
         with open(token_path, 'w') as token:
             token.write(creds.to_json())
 
     return build('calendar', 'v3', credentials=creds)
 
 
-def create_event(summary, description, start_time):
+def create_event(summary, description, start_time, repeat="none", timezone_name="Asia/Jakarta"):
+    """
+    repeat: "none" | "daily" | "weekly"
+    """
     service = get_calendar_service()
 
     end_time = start_time + timedelta(hours=1)
@@ -77,11 +77,11 @@ def create_event(summary, description, start_time):
         'description': description,
         'start': {
             'dateTime': start_time.isoformat(),
-            'timeZone': 'Asia/Jakarta',
+            'timeZone': timezone_name,
         },
         'end': {
             'dateTime': end_time.isoformat(),
-            'timeZone': 'Asia/Jakarta',
+            'timeZone': timezone_name,
         },
         'reminders': {
             'useDefault': False,
@@ -91,28 +91,10 @@ def create_event(summary, description, start_time):
         },
     }
 
-    event = service.events().insert(
-        calendarId='primary',
-        body=event
-    ).execute()
-
-    return event.get('htmlLink')
-    service = get_calendar_service()
-
-    end_time = start_time + timedelta(hours=1)
-
-    event = {
-        'summary': summary,
-        'description': description,
-        'start': {
-            'dateTime': start_time.isoformat(),
-            'timeZone': 'Asia/Jakarta',
-        },
-        'end': {
-            'dateTime': end_time.isoformat(),
-            'timeZone': 'Asia/Jakarta',
-        },
-    }
+    if repeat == "daily":
+        event['recurrence'] = ['RRULE:FREQ=DAILY']
+    elif repeat == "weekly":
+        event['recurrence'] = ['RRULE:FREQ=WEEKLY']
 
     event = service.events().insert(
         calendarId='primary',
