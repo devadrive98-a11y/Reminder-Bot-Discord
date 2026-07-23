@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+
+venv/
+.env
+
+credentials.json
+token.json
+*.b64.txt
+reminders.json
+*.log
+/.vs/Reminder Bot Discord.slnx/FileContentIndex
