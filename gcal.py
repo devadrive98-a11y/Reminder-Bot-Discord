@@ -83,6 +83,35 @@ def create_event(summary, description, start_time):
             'dateTime': end_time.isoformat(),
             'timeZone': 'Asia/Jakarta',
         },
+        'reminders': {
+            'useDefault': False,
+            'overrides': [
+                {'method': 'popup', 'minutes': 10},
+            ],
+        },
+    }
+
+    event = service.events().insert(
+        calendarId='primary',
+        body=event
+    ).execute()
+
+    return event.get('htmlLink')
+    service = get_calendar_service()
+
+    end_time = start_time + timedelta(hours=1)
+
+    event = {
+        'summary': summary,
+        'description': description,
+        'start': {
+            'dateTime': start_time.isoformat(),
+            'timeZone': 'Asia/Jakarta',
+        },
+        'end': {
+            'dateTime': end_time.isoformat(),
+            'timeZone': 'Asia/Jakarta',
+        },
     }
 
     event = service.events().insert(
