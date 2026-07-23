@@ -90,3 +90,26 @@ def set_user_timezone(user_id, tz_name):
     settings = load_settings()
     settings.setdefault(str(user_id), {})["timezone"] = tz_name
     save_settings(settings)
+
+
+def get_user_snooze_minutes(user_id):
+    settings = load_settings()
+    return settings.get(str(user_id), {}).get("snooze_minutes", 10)
+
+
+def set_user_snooze_minutes(user_id, minutes):
+    settings = load_settings()
+    settings.setdefault(str(user_id), {})["snooze_minutes"] = minutes
+    save_settings(settings)
+
+
+def get_user_event_color(user_id):
+    """Mengembalikan Google Calendar colorId (None = default warna kalender)."""
+    settings = load_settings()
+    return settings.get(str(user_id), {}).get("event_color")
+
+
+def set_user_event_color(user_id, color_id):
+    settings = load_settings()
+    settings.setdefault(str(user_id), {})["event_color"] = color_id
+    save_settings(settings)

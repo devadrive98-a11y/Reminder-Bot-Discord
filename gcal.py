@@ -12,6 +12,21 @@ from datetime import timedelta
 
 SCOPES = ['https://www.googleapis.com/auth/calendar']
 
+# Mapping nama warna -> Google Calendar colorId
+EVENT_COLORS = {
+    "lavender": "1",
+    "sage": "2",
+    "grape": "3",
+    "flamingo": "4",
+    "banana": "5",
+    "tangerine": "6",
+    "peacock": "7",
+    "graphite": "8",
+    "blueberry": "9",
+    "basil": "10",
+    "tomato": "11",
+}
+
 
 def restore_google_files():
     """
@@ -64,9 +79,11 @@ def get_calendar_service():
     return build('calendar', 'v3', credentials=creds)
 
 
-def create_event(summary, description, start_time, repeat="none", timezone_name="Asia/Jakarta"):
+def create_event(summary, description, start_time, repeat="none", timezone_name="Asia/Jakarta",
+                  color_id=None, reminder_minutes=10):
     """
     repeat: "none" | "daily" | "weekly"
+    color_id: Google Calendar colorId, "1".."11", atau None untuk warna default
     """
     service = get_calendar_service()
 
@@ -86,10 +103,13 @@ def create_event(summary, description, start_time, repeat="none", timezone_name=
         'reminders': {
             'useDefault': False,
             'overrides': [
-                {'method': 'popup', 'minutes': 10},
+                {'method': 'popup', 'minutes': reminder_minutes},
             ],
         },
     }
+
+    if color_id:
+        event['colorId'] = str(color_id)
 
     if repeat == "daily":
         event['recurrence'] = ['RRULE:FREQ=DAILY']

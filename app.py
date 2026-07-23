@@ -11,7 +11,7 @@ from discord.ext import commands
 import dateparser
 from fastapi import FastAPI
 
-from gcal import create_event
+from gcal import create_event, EVENT_COLORS
 import storage
 
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -94,6 +94,7 @@ async def build_reminder(user_id, text, remind_time, repeat, timezone_name):
     """
     calendar_link = None
     calendar_error = None
+    color_id = storage.get_user_event_color(user_id)
 
     try:
         calendar_link = create_event(
@@ -102,6 +103,7 @@ async def build_reminder(user_id, text, remind_time, repeat, timezone_name):
             start_time=remind_time,
             repeat=repeat,
             timezone_name=timezone_name,
+            color_id=color_id,
         )
     except Exception as e:
         calendar_error = str(e)
@@ -172,16 +174,20 @@ class ConfirmView(discord.ui.View):
 # SNOOZE VIEW (dipakai saat reminder terpicu)
 # =========================
 class SnoozeView(discord.ui.View):
-    def __init__(self, user_id, text, timezone_name):
+    def __init__(self, user_id, text, timezone_name, snooze_minutes=10):
         super().__init__(timeout=3600)  # tombol aktif 1 jam sejak notif dikirim
         self.user_id = user_id
         self.text = text
         self.timezone_name = timezone_name
+        self.snooze_minutes = snooze_minutes
+
+        # ganti label tombol sesuai durasi snooze user
+        self.snooze.label = f"⏰ Snooze {snooze_minutes} menit"
 
     @discord.ui.button(label="⏰ Snooze 10 menit", style=discord.ButtonStyle.secondary)
     async def snooze(self, interaction: discord.Interaction, button: discord.ui.Button):
         tz = ZoneInfo(self.timezone_name)
-        new_time = datetime.now(tz) + timedelta(minutes=10)
+        new_time = datetime.now(tz) + timedelta(minutes=self.snooze_minutes)
 
         storage.add_reminder(
             user_id=self.user_id,
@@ -321,6 +327,52 @@ async def cancel_reminder(interaction: discord.Interaction, reminder_id: str):
     await interaction.response.send_message(f"✅ Reminder `{reminder_id}` dibatalkan.", ephemeral=True)
 
 
+@bot.tree.command(name="remind-setting", description="Atur durasi snooze dan warna event Google Calendar kamu")
+@app_commands.describe(
+    snooze_menit="Durasi snooze dalam menit (contoh: 5, 10, 15)",
+    warna="Warna event Google Calendar",
+)
+@app_commands.choices(warna=[
+    app_commands.Choice(name=name.capitalize(), value=name) for name in EVENT_COLORS.keys()
+])
+async def remind_setting(
+    interaction: discord.Interaction,
+    snooze_menit: int = None,
+    warna: app_commands.Choice[str] = None,
+):
+    updated = []
+
+    if snooze_menit is not None:
+        if snooze_menit <= 0:
+            await interaction.response.send_message("❌ Snooze menit harus lebih dari 0.", ephemeral=True)
+            return
+        storage.set_user_snooze_minutes(interaction.user.id, snooze_menit)
+        updated.append(f"⏰ Snooze diatur ke **{snooze_menit} menit**")
+
+    if warna is not None:
+        color_id = EVENT_COLORS[warna.value]
+        storage.set_user_event_color(interaction.user.id, color_id)
+        updated.append(f"🎨 Warna event diatur ke **{warna.name}**")
+
+    if not updated:
+        current_snooze = storage.get_user_snooze_minutes(interaction.user.id)
+        current_color_id = storage.get_user_event_color(interaction.user.id)
+        current_color_name = next(
+            (name for name, cid in EVENT_COLORS.items() if cid == current_color_id),
+            "default"
+        )
+        await interaction.response.send_message(
+            f"Setting kamu saat ini:\n"
+            f"⏰ Snooze: **{current_snooze} menit**\n"
+            f"🎨 Warna event: **{current_color_name}**\n\n"
+            f"Gunakan `/remind-setting snooze_menit:<angka>` dan/atau `warna:<pilihan>` untuk mengubah.",
+            ephemeral=True,
+        )
+        return
+
+    await interaction.response.send_message("\n".join(updated), ephemeral=True)
+
+
 @bot.tree.command(name="timezone", description="Set timezone kamu (contoh: Asia/Jakarta, Asia/Makassar)")
 @app_commands.describe(tz="Nama timezone IANA, contoh: Asia/Jakarta")
 async def set_timezone(interaction: discord.Interaction, tz: str):
@@ -354,9 +406,10 @@ async def reminder_loop():
             if now >= t:
                 user = await bot.fetch_user(r["user_id"])
                 tz_name = storage.get_user_timezone(r["user_id"])
+                snooze_minutes = storage.get_user_snooze_minutes(r["user_id"])
 
                 try:
-                    view = SnoozeView(r["user_id"], r["text"], tz_name)
+                    view = SnoozeView(r["user_id"], r["text"], tz_name, snooze_minutes)
                     await user.send(f"⏰ Reminder!\n\n📝 {r['text']}", view=view)
                 except Exception as e:
                     print("Gagal kirim DM:", e)
