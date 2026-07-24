@@ -331,6 +331,7 @@ async def cancel_reminder(interaction: discord.Interaction, reminder_id: str):
     await interaction.response.send_message(f"✅ Reminder `{reminder_id}` dibatalkan.", ephemeral=True)
 
 @bot.tree.command(name="status", description="Cek apakah server bot sedang jalan")
+@app_commands.describe(reminder_id="ID Status, bisa dilihat lewat /status")
 async def status(interaction: discord.Interaction):
     await interaction.response.defer()
 
