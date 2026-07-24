@@ -9,13 +9,17 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import dateparser
+import aiohttp
 from fastapi import FastAPI
 
 from gcal import create_event, EVENT_COLORS
 import storage
 
 TOKEN = os.getenv("DISCORD_TOKEN")
-
+HEALTH_CHECK_URL = os.getenv(
+    "HEALTH_CHECK_URL",
+    "https://reminder-bot-discord-3a3b97d1.fastapicloud.dev/"
+)
 intents = discord.Intents.default()
 intents.message_content = True
 
@@ -325,6 +329,49 @@ async def cancel_reminder(interaction: discord.Interaction, reminder_id: str):
 
     storage.remove_reminder(reminder_id)
     await interaction.response.send_message(f"✅ Reminder `{reminder_id}` dibatalkan.", ephemeral=True)
+
+@bot.tree.command(name="status", description="Cek apakah server bot sedang jalan")
+async def status(interaction: discord.Interaction):
+    await interaction.response.defer()
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(HEALTH_CHECK_URL, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                data = await resp.json()
+
+        server_status = data.get("status", "unknown")
+        bot_logged_in = data.get("bot_logged_in", False)
+
+        if resp.status == 200 and server_status == "ok" and bot_logged_in:
+            emoji = "🟢"
+            summary = "Server jalan normal, bot sudah login."
+        elif resp.status == 200 and server_status == "ok":
+            emoji = "🟡"
+            summary = "Server jalan, tapi bot belum login ke Discord."
+        else:
+            emoji = "🟠"
+            summary = "Server merespons, tapi status tidak seperti biasanya."
+
+        await interaction.followup.send(
+            f"{emoji} **Status Server**\n"
+            f"{summary}\n\n"
+            f"HTTP: `{resp.status}`\n"
+            f"Response: `{data}`\n"
+            f"URL: {HEALTH_CHECK_URL}"
+        )
+
+    except asyncio.TimeoutError:
+        await interaction.followup.send(
+            f"🔴 **Server tidak merespons (timeout).**\n"
+            f"URL: {HEALTH_CHECK_URL}\n"
+            f"Kemungkinan server sedang down atau sangat lambat."
+        )
+    except Exception as e:
+        await interaction.followup.send(
+            f"🔴 **Gagal cek status server.**\n"
+            f"Error: `{str(e)[:200]}`\n"
+            f"URL: {HEALTH_CHECK_URL}"
+        )
 
 
 @bot.tree.command(name="remind-setting", description="Atur durasi snooze dan warna event Google Calendar kamu")
